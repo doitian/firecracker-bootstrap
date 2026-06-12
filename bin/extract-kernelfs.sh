@@ -51,3 +51,10 @@ while IFS= read -r DIGEST; do
 done <<< "${DIGESTS}"
 
 echo "Done. Raw tarballs saved to ${OUTDIR}"
+
+echo "Extracting vmlinux.bin ..."
+for layer in "${OUTDIR}"/layer_*.tar.gz; do
+    tar xzf "${layer}" --wildcards --anchored -C "${OUTDIR}" 'boot/vmlinux-*' 2>/dev/null || true
+done
+mv "${OUTDIR}"/boot/vmlinux-* "${OUTDIR}/vmlinux.bin"
+rm -rf "${OUTDIR}/boot"
