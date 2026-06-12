@@ -1,0 +1,65 @@
+name: Build rootfs images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - rootfs/*/**
+  pull_request:
+    paths:
+      - rootfs/*/**
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.set-matrix.outputs.images }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          dirs=$(ls -d rootfs/*/Dockerfile 2>/dev/null | sed 's|/Dockerfile||' | jq -Rnc '[inputs]')
+          echo "images=$dirs" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: discover
+    runs-on: ubuntu-latest
+    if: ${{ needs.discover.outputs.images != '[]' }}
+    strategy:
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.images) }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract tag from directory name
+        id: tag
+        run: echo "name=$(basename '${{ matrix.dir }}')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.name }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.dir }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
