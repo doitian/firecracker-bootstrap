@@ -41,13 +41,13 @@ fi
 rm -rf "${OUTDIR}"
 mkdir -p "${OUTDIR}"
 
-echo "Pulling and extracting layers ..."
+echo "Pulling and saving layers ..."
 LAYER_NUM=0
 TOTAL=$(echo "${DIGESTS}" | wc -l)
 while IFS= read -r DIGEST; do
     LAYER_NUM=$((LAYER_NUM + 1))
     echo "  [${LAYER_NUM}/${TOTAL}] ${DIGEST}"
-    curl -sSL -H "${AUTH_HEADER}" "${BASE_URL}/blobs/${DIGEST}" | tar -C "${OUTDIR}" -xz
+    curl -sSL -H "${AUTH_HEADER}" "${BASE_URL}/blobs/${DIGEST}" -o "${OUTDIR}/layer_${LAYER_NUM}.tar.gz"
 done <<< "${DIGESTS}"
 
-echo "Done. Rootfs extracted to ${OUTDIR}"
+echo "Done. Raw tarballs saved to ${OUTDIR}"
