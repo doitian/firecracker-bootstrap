@@ -1,0 +1,17 @@
+{
+  "boot-source": {
+    "kernel_image_path": "kernelfs/6.18-fc-amd64/vmlinux.bin",
+    "boot_args": "reboot=k panic=1 console=ttyS0"
+  },
+  "drives": [
+    {
+      "drive_id": "rootfs",
+      "path_on_host": "rootfs/bare-bones/bare-bones.ext4",
+      "is_root_device": true
+    }
+  ],
+  "machine-config": {
+    "vcpu_count": 2,
+    "mem_size_mib": 1024
+  }
+}
