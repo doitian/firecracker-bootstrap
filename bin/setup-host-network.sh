@@ -174,13 +174,20 @@ else
         echo "  -> nft table ${TABLE} does not exist"
     fi
 
-    # ---- remove ufw rule ----
-    RULE_NUM=$(sudo ufw status numbered | grep "in on ${BRIDGE}" | awk '{print $2}' | tr -d '[]' || true)
-    if [ -n "${RULE_NUM}" ]; then
-        sudo ufw --force delete "${RULE_NUM}"
-        echo "  -> Removed UFW rule for ${BRIDGE}"
+    # ---- remove ufw rules ----
+    for idx in $(seq "${TAP_BASE_INDEX}" "${TAP_LAST}"); do
+        tap="tap${idx}"
+        if sudo ufw status | grep -qF "${tap}"; then
+            sudo ufw --force delete allow in on "${tap}"
+            echo "  -> Removed UFW rules for ${tap}"
+        fi
+    done
+
+    if sudo ufw status | grep -qF "${BRIDGE}"; then
+        sudo ufw --force delete allow in on "${BRIDGE}"
+        echo "  -> Removed UFW rules for ${BRIDGE}"
     else
-        echo "  -> No UFW rule for ${BRIDGE}"
+        echo "  -> No UFW rules for ${BRIDGE}"
     fi
 
     echo ""
