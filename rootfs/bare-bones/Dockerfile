@@ -26,15 +26,12 @@ for dev in $devs; do
     ip link set "$dev" up
     ip route add default via "${guest_ip%.*}.1" dev "$dev"
 done
+echo "nameserver 1.1.1.1" > /etc/resolv.conf
 SCRIPT
 chmod +x /etc/local.d/fcnet.start
 
 echo 'hostname -F /etc/hostname' >> /etc/local.d/hostname.start
 chmod +x /etc/local.d/hostname.start
-
-cat > /etc/resolv.conf <<'DNS'
-nameserver 1.1.1.1
-DNS
 
 rc-update add local default
 EOR
