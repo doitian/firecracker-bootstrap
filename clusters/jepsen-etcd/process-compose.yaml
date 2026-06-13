@@ -1,0 +1,7 @@
+# Cluster for <https://github.com/jepsen-io/jepsen/blob/main/doc/tutorial/01-scaffolding.md>
+# Run `bin/setup-host-network.sh --count 5` to setup the network first.
+processes:
+  etcd:
+    command: "bin/start-vm.sh --config-out run/jepsen-etcd-{PC_REPLICA_NUM}.json sshd {PC_REPLICA_NUM}"
+    log_location: "run/jepsen-etcd-{PC_REPLICA_NUM}.log"
+    replicas: 5

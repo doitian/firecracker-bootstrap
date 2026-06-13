@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --config-out)
-            CONFIG_OUT="$2"
+            CONFIG_OUT="${2//\{PC_REPLICA_NUM\}/${PC_REPLICA_NUM:-0}}"
             shift 2
             ;;
         --set)
@@ -69,7 +69,7 @@ if [[ $# -ne 2 ]]; then
 fi
 
 ROOTFS_TAG="$1"
-NODE_INDEX="$2"
+NODE_INDEX="${2//\{PC_REPLICA_NUM\}/${PC_REPLICA_NUM:-0}}"
 
 if ! [[ "$NODE_INDEX" =~ ^[0-9]+$ ]]; then
     echo "ERROR: node-index must be a non-negative integer, got: $NODE_INDEX" >&2
@@ -108,7 +108,7 @@ GUEST_MAC="06:00:AC:10:00:$(printf "%02X" "$LAST_OCTET")"
 # ---------------------------------------------------------------
 JQ_FILTER="
   .\"network-interfaces\"[0].guest_mac = \"${GUEST_MAC}\" |
-  .\"network-interfaces\"[0].host_dev_name = \"tap2\" |
+  .\"network-interfaces\"[0].host_dev_name = \"tap${LAST_OCTET}\" |
   .drives[0].path_on_host = \"rootfs/${ROOTFS_TAG}/${ROOTFS_TAG}.ext4\"
 "
 

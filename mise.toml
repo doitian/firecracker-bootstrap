@@ -1,3 +1,6 @@
+[tools]
+"github:F1bonacc1/process-compose" = "latest"
+
 [tasks.extract-kernelfs]
 description = "Extract kernel filesystem layers from OCI image"
 run = "bin/extract-kernelfs.sh"
@@ -8,7 +11,7 @@ usage = '''
 arg "<kernelfs-dir>" help="Path to kernelfs directory (e.g. kernelfs/6.18-fc-amd64)"
 arg "<image-tag>" help="Docker image tag (e.g. bare-bones)"
 '''
-run = "bin/bake-rootfs.sh {{ usage.kernelfs_dir }} {{ usage.image_tag }}"
+run = "bin/bake-rootfs.sh $usage_kernelfs_dir $usage_image_tag"
 
 [tasks.cleanup]
 description = "Remove baked rootfs ext4 images"
@@ -18,9 +21,15 @@ run = "rm -rf rootfs/*/*.ext4 kernelfs/*"
 depends = ["host-network:up"]
 
 [tasks."host-network:up"]
-description = "Setup host networking for Firecracker (tap, nftables, ufw)"
-run = "bin/setup-host-network.sh up"
+description = "Setup host networking for Firecracker (bridge, tap, nftables, ufw)"
+usage = '''
+flag "--count <count>" help="Number of tap devices" default="1"
+'''
+run = "bin/setup-host-network.sh --count $usage_count up"
 
 [tasks."host-network:down"]
 description = "Tear down host networking for Firecracker"
-run = "bin/setup-host-network.sh down"
+usage = '''
+flag "--count <count>" help="Number of tap devices" default="1"
+'''
+run = "bin/setup-host-network.sh --count $usage_count down"
