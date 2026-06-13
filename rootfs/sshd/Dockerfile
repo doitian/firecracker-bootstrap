@@ -11,4 +11,7 @@ sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 ssh-keygen -A
 
 rc-update add sshd default
+
+rc-update add devfs sysinit
+rc-update add mdev sysinit
 EOR
