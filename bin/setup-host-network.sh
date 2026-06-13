@@ -7,7 +7,8 @@ set -euo pipefail
 
 TAP_DEV="tap2"
 TAP_IP="172.16.0.1/24"
-GUEST_IP="172.16.0.2"
+GUEST_IPS=("172.16.0.2" "172.16.0.3" "172.16.0.4")
+GUEST_SUBNET="172.16.0.0/24"
 TABLE="firecracker"
 
 CMD="${1:-}"
@@ -33,7 +34,8 @@ echo "Tap device     : ${TAP_DEV}"
 # ============================================================
 if [ "${CMD}" = "up" ]; then
     echo "Tap IP         : ${TAP_IP}"
-    echo "Guest IP       : ${GUEST_IP}"
+    echo "Guest IPs      : ${GUEST_IPS[*]}"
+    echo "Guest subnet   : ${GUEST_SUBNET}"
 
     # ---- create tap device ----
     if ! ip link show "${TAP_DEV}" &>/dev/null; then
@@ -60,11 +62,11 @@ if [ "${CMD}" = "up" ]; then
         echo "  -> Created nft table ${TABLE}"
     fi
 
-    if ! sudo nft list chain ip "${TABLE}" postrouting 2>/dev/null | grep -qF "${GUEST_IP}"; then
-        sudo nft add rule ip "${TABLE}" postrouting ip saddr "${GUEST_IP}" oifname "${HOST_IFACE}" counter masquerade
-        echo "  -> Added NAT masquerade for ${GUEST_IP}"
+    if ! sudo nft list chain ip "${TABLE}" postrouting 2>/dev/null | grep -qF "${GUEST_SUBNET}"; then
+        sudo nft add rule ip "${TABLE}" postrouting ip saddr "${GUEST_SUBNET}" oifname "${HOST_IFACE}" counter masquerade
+        echo "  -> Added NAT masquerade for ${GUEST_SUBNET}"
     else
-        echo "  -> NAT masquerade for ${GUEST_IP} already exists"
+        echo "  -> NAT masquerade for ${GUEST_SUBNET} already exists"
     fi
 
     if ! sudo nft list chain ip "${TABLE}" forward 2>/dev/null | grep -qF "${TAP_DEV}"; then
@@ -90,8 +92,12 @@ if [ "${CMD}" = "up" ]; then
 
     echo ""
     echo "Done. Use in Firecracker config:"
-    echo "  guest_mac: 06:00:AC:10:00:02"
     echo "  host_dev_name: ${TAP_DEV}"
+    for ip in "${GUEST_IPS[@]}"; do
+        last_octet=$(echo "${ip}" | awk -F. '{print $4}')
+        printf -v mac "06:00:AC:10:00:%02X" "${last_octet}"
+        echo "  ${ip} -> guest_mac: ${mac}"
+    done
 
 # ============================================================
 # down
