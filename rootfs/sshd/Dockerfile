@@ -13,5 +13,4 @@ ssh-keygen -A
 rc-update add sshd default
 
 rc-update add devfs sysinit
-rc-update add mdev sysinit
 EOR
