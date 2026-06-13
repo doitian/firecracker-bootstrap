@@ -13,3 +13,14 @@ run = "bin/bake-rootfs.sh {{ usage.kernelfs_dir }} {{ usage.image_tag }}"
 [tasks.cleanup]
 description = "Remove baked rootfs ext4 images"
 run = "rm -rf rootfs/*/*.ext4 kernelfs/*"
+
+[tasks.host-network]
+depends = ["host-network:up"]
+
+[tasks."host-network:up"]
+description = "Setup host networking for Firecracker (tap, nftables, ufw)"
+run = "bin/setup-host-network.sh up"
+
+[tasks."host-network:down"]
+description = "Tear down host networking for Firecracker"
+run = "bin/setup-host-network.sh down"
