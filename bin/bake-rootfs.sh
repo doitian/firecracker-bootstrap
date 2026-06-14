@@ -83,6 +83,7 @@ for layer in "${KERNELFS_DIR}"/layer_*.tar.gz; do
         --numeric-owner \
         --same-permissions \
         --anchored \
+        --keep-directory-symlink \
         -C "${WORK_DIR}/mnt"
 done
 
