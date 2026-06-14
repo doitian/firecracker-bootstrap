@@ -100,7 +100,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   build-derived:
-    needs: [discover, build-base]
+    needs: discover
     runs-on: ubuntu-latest
     if: ${{ needs.discover.outputs.has_derived == 'true' }}
     strategy:
