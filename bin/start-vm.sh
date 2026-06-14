@@ -150,9 +150,13 @@ fi
 # Give this node its own writable disk. Use a reflink (CoW) when the
 # filesystem supports it (btrfs/XFS) and fall back to a full copy
 # otherwise, so concurrent nodes never share one ext4 file.
-echo "Provisioning node disk: ${NODE_ROOTFS} (from ${BASE_ROOTFS})"
 mkdir -p "$(dirname "$NODE_ROOTFS")"
-cp --reflink=auto -f "$BASE_ROOTFS" "$NODE_ROOTFS"
+if [[ -f "$NODE_ROOTFS" ]]; then
+    echo "Reusing existing node disk: ${NODE_ROOTFS}"
+else
+    echo "Provisioning node disk: ${NODE_ROOTFS} (from ${BASE_ROOTFS})"
+    cp --reflink=auto -f "$BASE_ROOTFS" "$NODE_ROOTFS"
+fi
 
 mkdir -p "$(dirname "$CONFIG_FILE")"
 echo "$CONFIG_JSON" > "$CONFIG_FILE"
