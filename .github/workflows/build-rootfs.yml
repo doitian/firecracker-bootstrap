@@ -18,21 +18,58 @@ jobs:
   discover:
     runs-on: ubuntu-latest
     outputs:
-      images: ${{ steps.set-matrix.outputs.images }}
+      base_images: ${{ steps.set-matrix.outputs.base_images }}
+      derived_images: ${{ steps.set-matrix.outputs.derived_images }}
+      has_derived: ${{ steps.set-matrix.outputs.has_derived }}
+      image_deps: ${{ steps.set-matrix.outputs.image_deps }}
     steps:
       - uses: actions/checkout@v6
       - id: set-matrix
         run: |
-          dirs=$(ls -d rootfs/*/Dockerfile 2>/dev/null | sed 's|/Dockerfile||' | jq -Rnc '[inputs]')
-          echo "images=$dirs" >> "$GITHUB_OUTPUT"
+          dirs=$(ls -d rootfs/*/Dockerfile 2>/dev/null | sed 's|/Dockerfile||')
+          bare_names=$(echo "$dirs" | sed 's|rootfs/||')
 
-  build:
+          base_images="[]"
+          derived_images="[]"
+          dep_json="{}"
+
+          for d in $dirs; do
+            name=$(basename "$d")
+            froms=$(grep -oP "FROM\s+ghcr\.io/${{ github.repository }}:\K[^\s]+" "$d/Dockerfile" 2>/dev/null || true)
+
+            deps="[]"
+            for ref in $froms; do
+              if echo "$bare_names" | grep -qxF "$ref"; then
+                deps=$(echo "$deps" | jq --arg r "$ref" '. + [$r]')
+              fi
+            done
+
+            dep_json=$(echo "$dep_json" | jq --arg n "$name" --argjson d "$deps" '. + {($n): $d}')
+
+            if echo "$deps" | jq -e 'length == 0' > /dev/null 2>&1; then
+              base_images=$(echo "$base_images" | jq --arg n "$name" '. + [$n]')
+            else
+              derived_images=$(echo "$derived_images" | jq --arg n "$name" '. + [$n]')
+            fi
+          done
+
+          has_derived="false"
+          if echo "$derived_images" | jq -e 'length > 0' > /dev/null 2>&1; then
+            has_derived="true"
+          fi
+
+          echo "base_images=$base_images" >> "$GITHUB_OUTPUT"
+          echo "derived_images=$derived_images" >> "$GITHUB_OUTPUT"
+          echo "has_derived=$has_derived" >> "$GITHUB_OUTPUT"
+          echo "image_deps=$dep_json" >> "$GITHUB_OUTPUT"
+
+  build-base:
     needs: discover
     runs-on: ubuntu-latest
-    if: ${{ needs.discover.outputs.images != '[]' }}
+    if: ${{ needs.discover.outputs.base_images != '[]' }}
     strategy:
       matrix:
-        dir: ${{ fromJSON(needs.discover.outputs.images) }}
+        tag: ${{ fromJSON(needs.discover.outputs.base_images) }}
     permissions:
       contents: read
       packages: write
@@ -46,20 +83,58 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract tag from directory name
-        id: tag
-        run: echo "name=$(basename '${{ matrix.dir }}')" >> "$GITHUB_OUTPUT"
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ matrix.tag }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: rootfs/${{ matrix.tag }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  build-derived:
+    needs: [discover, build-base]
+    runs-on: ubuntu-latest
+    if: ${{ needs.discover.outputs.has_derived == 'true' }}
+    strategy:
+      matrix:
+        tag: ${{ fromJSON(needs.discover.outputs.derived_images) }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build local dependencies
+        run: |
+          deps='${{ needs.discover.outputs.image_deps }}'
+          for dep in $(echo "$deps" | jq -r '.["${{ matrix.tag }}"] // [] | .[]'); do
+            echo "Building local dependency: $dep"
+            docker build -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$dep" "rootfs/$dep"
+          done
 
       - uses: docker/metadata-action@v6
         id: meta
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ steps.tag.outputs.name }}
+            type=raw,value=${{ matrix.tag }}
 
       - uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.dir }}
+          context: rootfs/${{ matrix.tag }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
