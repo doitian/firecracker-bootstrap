@@ -104,12 +104,23 @@ GUEST_IP="172.16.0.${LAST_OCTET}"
 GUEST_MAC="06:00:AC:10:00:$(printf "%02X" "$LAST_OCTET")"
 
 # ---------------------------------------------------------------
+# Compute disk paths
+#
+# Each node must boot from its OWN writable rootfs. Sharing a single
+# ext4 file across concurrent read-write VMs corrupts the filesystem
+# ("Structure needs cleaning" / EFSCORRUPTED). The base image is
+# treated as immutable; a per-node copy is created at launch time.
+# ---------------------------------------------------------------
+BASE_ROOTFS="rootfs/${ROOTFS_TAG}/${ROOTFS_TAG}.ext4"
+NODE_ROOTFS="run/${ROOTFS_TAG}-${NODE_INDEX}.ext4"
+
+# ---------------------------------------------------------------
 # Build jq filter to modify template
 # ---------------------------------------------------------------
 JQ_FILTER="
   .\"network-interfaces\"[0].guest_mac = \"${GUEST_MAC}\" |
   .\"network-interfaces\"[0].host_dev_name = \"tap${LAST_OCTET}\" |
-  .drives[0].path_on_host = \"rootfs/${ROOTFS_TAG}/${ROOTFS_TAG}.ext4\"
+  .drives[0].path_on_host = \"${NODE_ROOTFS}\"
 "
 
 for override in "${OVERRIDES[@]}"; do
@@ -140,6 +151,19 @@ fi
 # ---------------------------------------------------------------
 # Start Firecracker
 # ---------------------------------------------------------------
+if [[ ! -f "$BASE_ROOTFS" ]]; then
+    echo "ERROR: Base rootfs not found: $BASE_ROOTFS" >&2
+    echo "Bake it first, e.g.: mise run bake-rootfs <kernelfs-dir> ${ROOTFS_TAG}" >&2
+    exit 1
+fi
+
+# Give this node its own writable disk. Use a reflink (CoW) when the
+# filesystem supports it (btrfs/XFS) and fall back to a full copy
+# otherwise, so concurrent nodes never share one ext4 file.
+echo "Provisioning node disk: ${NODE_ROOTFS} (from ${BASE_ROOTFS})"
+mkdir -p "$(dirname "$NODE_ROOTFS")"
+cp --reflink=auto -f "$BASE_ROOTFS" "$NODE_ROOTFS"
+
 if [[ -n "$CONFIG_OUT" ]]; then
     CONFIG_FILE="$CONFIG_OUT"
 else
@@ -155,5 +179,5 @@ if ! command -v "$FIRECRACKER_BIN" &>/dev/null; then
     exit 1
 fi
 
-echo "Starting Firecracker — Node $NODE_INDEX  IP: $GUEST_IP  MAC: $GUEST_MAC  Tap: tap2"
+echo "Starting Firecracker — Node $NODE_INDEX  IP: $GUEST_IP  MAC: $GUEST_MAC  Tap: tap${LAST_OCTET}"
 exec "$FIRECRACKER_BIN" --config-file "$CONFIG_FILE" --no-api
