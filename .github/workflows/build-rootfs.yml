@@ -42,16 +42,16 @@ jobs:
             deps="[]"
             for ref in $froms; do
               if echo "$bare_names" | grep -qxF "$ref"; then
-                deps=$(echo "$deps" | jq --arg r "$ref" '. + [$r]')
+                deps=$(echo "$deps" | jq -c --arg r "$ref" '. + [$r]')
               fi
             done
 
-            dep_json=$(echo "$dep_json" | jq --arg n "$name" --argjson d "$deps" '. + {($n): $d}')
+            dep_json=$(echo "$dep_json" | jq -c --arg n "$name" --argjson d "$deps" '. + {($n): $d}')
 
             if echo "$deps" | jq -e 'length == 0' > /dev/null 2>&1; then
-              base_images=$(echo "$base_images" | jq --arg n "$name" '. + [$n]')
+              base_images=$(echo "$base_images" | jq -c --arg n "$name" '. + [$n]')
             else
-              derived_images=$(echo "$derived_images" | jq --arg n "$name" '. + [$n]')
+              derived_images=$(echo "$derived_images" | jq -c --arg n "$name" '. + [$n]')
             fi
           done
 
