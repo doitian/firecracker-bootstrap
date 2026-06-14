@@ -6,9 +6,11 @@ on:
       - main
     paths:
       - rootfs/*/**
+      - .github/workflows/build-rootfs.yml
   pull_request:
     paths:
       - rootfs/*/**
+      - .github/workflows/build-rootfs.yml
 
 env:
   REGISTRY: ghcr.io
