@@ -2,6 +2,6 @@
 # Run `bin/setup-host-network.sh --count 5` to setup the network first.
 processes:
   etcd:
-    command: "bin/start-vm.sh --config-out run/jepsen-etcd-{PC_REPLICA_NUM}.json debian-jepsen {PC_REPLICA_NUM}"
-    log_location: "run/jepsen-etcd-{PC_REPLICA_NUM}.log"
+    command: "bin/start-vm.sh debian-jepsen {PC_REPLICA_NUM}"
+    log_location: "run/debian-jepsen-{PC_REPLICA_NUM}.log"
     replicas: 5

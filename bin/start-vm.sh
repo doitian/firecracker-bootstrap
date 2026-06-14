@@ -11,8 +11,6 @@ Arguments:
 
 Options:
   --config-only       Generate config only, don't start the VM
-  --config-out PATH   Write config to PATH instead of stdout (--config-only)
-                      or a temp file (default when starting VM)
   --set KEY=VALUE     Override a config value using a jq path expression.
                       Can be specified multiple times.
                       Examples:
@@ -28,7 +26,6 @@ EOF
 # Parse arguments
 # ---------------------------------------------------------------
 CONFIG_ONLY=false
-CONFIG_OUT=""
 OVERRIDES=()
 
 while [[ $# -gt 0 ]]; do
@@ -36,10 +33,6 @@ while [[ $# -gt 0 ]]; do
         --config-only)
             CONFIG_ONLY=true
             shift
-            ;;
-        --config-out)
-            CONFIG_OUT="${2//\{PC_REPLICA_NUM\}/${PC_REPLICA_NUM:-0}}"
-            shift 2
             ;;
         --set)
             OVERRIDES+=("$2")
@@ -113,6 +106,7 @@ GUEST_MAC="06:00:AC:10:00:$(printf "%02X" "$LAST_OCTET")"
 # ---------------------------------------------------------------
 BASE_ROOTFS="rootfs/${ROOTFS_TAG}/${ROOTFS_TAG}.ext4"
 NODE_ROOTFS="run/${ROOTFS_TAG}-${NODE_INDEX}.ext4"
+CONFIG_FILE="run/${ROOTFS_TAG}-${NODE_INDEX}.json"
 
 # ---------------------------------------------------------------
 # Build jq filter to modify template
@@ -140,11 +134,7 @@ done
 CONFIG_JSON=$(jq "${JQ_FILTER}" "$TEMPLATE")
 
 if $CONFIG_ONLY; then
-    if [[ -n "$CONFIG_OUT" ]]; then
-        echo "$CONFIG_JSON" > "$CONFIG_OUT"
-    else
-        echo "$CONFIG_JSON"
-    fi
+    echo "$CONFIG_JSON"
     exit 0
 fi
 
@@ -164,12 +154,7 @@ echo "Provisioning node disk: ${NODE_ROOTFS} (from ${BASE_ROOTFS})"
 mkdir -p "$(dirname "$NODE_ROOTFS")"
 cp --reflink=auto -f "$BASE_ROOTFS" "$NODE_ROOTFS"
 
-if [[ -n "$CONFIG_OUT" ]]; then
-    CONFIG_FILE="$CONFIG_OUT"
-else
-    CONFIG_FILE="/tmp/firecracker-${ROOTFS_TAG}-${NODE_INDEX}.json"
-fi
-
+mkdir -p "$(dirname "$CONFIG_FILE")"
 echo "$CONFIG_JSON" > "$CONFIG_FILE"
 echo "Config written to: $CONFIG_FILE"
 
