@@ -93,4 +93,40 @@ UNIT
 
 ln -sf /etc/systemd/system/fc-hostname.service /etc/systemd/system/multi-user.target.wants/fc-hostname.service
 ln -sf /dev/null /etc/systemd/system/networking.service 2>/dev/null || true
+
+# Speed up console-getty: default Type=idle waits for ALL boot jobs to finish
+# RestartSec=0 avoids delay when getty restarts after logout
+mkdir -p /etc/systemd/system/console-getty.service.d
+cat <<'OVERRIDE' > /etc/systemd/system/console-getty.service.d/override.conf
+[Service]
+Type=simple
+Restart=always
+RestartSec=0
+SendSIGHUP=no
+OVERRIDE
+
+# Volatile journal to avoid slow disk writes on boot
+mkdir -p /etc/systemd/journald.conf.d
+cat <<'CONF' > /etc/systemd/journald.conf.d/volatile.conf
+[Journal]
+Storage=volatile
+RuntimeMaxUse=16M
+CONF
+
+# Mask slow/unnecessary services that delay boot
+for svc in \
+  apt-daily.service apt-daily-upgrade.service \
+  apt-daily.timer apt-daily-upgrade.timer \
+  motd-news.service motd-news.timer \
+  systemd-networkd-wait-online.service \
+  systemd-random-seed.service \
+  systemd-update-utmp.service \
+  systemd-udev-trigger.service \
+  systemd-udevd.service \
+  systemd-modules-load.service \
+  e2scrub_all.timer fstrim.timer \
+  man-db.timer \
+  ; do
+  ln -sf /dev/null "/etc/systemd/system/${svc}" 2>/dev/null || true
+done
 EOR

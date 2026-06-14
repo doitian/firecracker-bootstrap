@@ -1,7 +1,7 @@
 {
   "boot-source": {
     "kernel_image_path": "kernelfs/6.18-fc-amd64/vmlinux.bin",
-    "boot_args": "reboot=k panic=1 console=ttyS0 systemd.unified_cgroup_hierarchy=0"
+    "boot_args": "reboot=k panic=1 console=ttyS0 systemd.unified_cgroup_hierarchy=0 quiet loglevel=3 fsck.mode=skip random.trust_cpu=on systemd.show_status=no"
   },
   "drives": [
     {
