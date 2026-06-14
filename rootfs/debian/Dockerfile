@@ -101,8 +101,6 @@ cat <<'OVERRIDE' > /etc/systemd/system/console-getty.service.d/override.conf
 [Service]
 Type=simple
 Restart=always
-RestartSec=0
-SendSIGHUP=no
 OVERRIDE
 
 # Volatile journal to avoid slow disk writes on boot
