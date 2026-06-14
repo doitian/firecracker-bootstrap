@@ -14,15 +14,19 @@ arg "<image-tag>" help="Docker image tag (e.g. alpine)"
 run = "bin/bake-rootfs.sh $usage_kernelfs_dir $usage_image_tag"
 
 [tasks.cleanup]
-description = "Remove generated files and runtime files"
+description = "Remove all generated and runtime files (kernelfs, rootfs ext4, run)"
 depends = ["cleanup:*"]
 
-[tasks."cleanup:generated"]
-description = "Remove local kernelfs and rootfs ext4 images"
-run = "rm -rf rootfs/*/*.ext4 kernelfs/*"
+[tasks."cleanup:kernelfs"]
+description = "Remove extracted kernel filesystem directories (kernelfs/*)"
+run = "rm -rf kernelfs/*"
+
+[tasks."cleanup:rootfs"]
+description = "Remove baked rootfs ext4 images (rootfs/*/*.ext4)"
+run = "rm -rf rootfs/*/*.ext4"
 
 [tasks."cleanup:run"]
-description = "Remove files in ./run"
+description = "Remove per-node runtime files (run/*)"
 run = "rm -rf run/*"
 
 [tasks.host-network]

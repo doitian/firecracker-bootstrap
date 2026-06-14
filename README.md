@@ -78,8 +78,10 @@ process-compose -f clusters/jepsen-etcd/process-compose.yaml up
 ### Clean up
 
 ```sh
-mise run cleanup        # remove generated kernelfs/rootfs images and run/ files
-mise run cleanup:run    # remove only the per-node files in run/
+mise run cleanup            # remove all generated and runtime files (kernelfs, rootfs ext4, run)
+mise run cleanup:kernelfs   # remove extracted kernel filesystem directories (kernelfs/*)
+mise run cleanup:rootfs     # remove baked rootfs ext4 images (rootfs/*/*.ext4)
+mise run cleanup:run        # remove per-node runtime files (run/*)
 ```
 
 ## Credit

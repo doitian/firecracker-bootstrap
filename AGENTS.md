@@ -61,9 +61,10 @@ process-compose -f clusters/jepsen-etcd/process-compose.yaml up   # 5-node etcd 
 
 ```bash
 mise run copy-ssh-keys --count 5        # Copy SSH public key to all nodes
-mise run cleanup                        # Remove kernelfs/, *.ext4, run/*
-mise run cleanup:run                    # Remove only run/* (per-node runtime)
-mise run cleanup:generated              # Remove only kernelfs/ and *.ext4
+mise run cleanup                        # Remove all generated and runtime files (kernelfs, rootfs ext4, run)
+mise run cleanup:run                    # Remove per-node runtime files (run/*)
+mise run cleanup:kernelfs               # Remove extracted kernel filesystem directories (kernelfs/*)
+mise run cleanup:rootfs                 # Remove baked rootfs ext4 images (rootfs/*/*.ext4)
 ```
 
 ## Directory Structure
