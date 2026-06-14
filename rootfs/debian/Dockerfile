@@ -19,6 +19,13 @@ echo "root:root" | chpasswd
 
 ssh-keygen -A
 
+cat <<'HOSTS' > /etc/hosts
+127.0.0.1	localhost
+::1	localhost ip6-localhost ip6-loopback
+ff02::1	ip6-allnodes
+ff02::2	ip6-allrouters
+HOSTS
+
 ln -sf /usr/lib/systemd/systemd /sbin/init
 
 mkdir -p /etc/systemd/system/getty.target.wants /etc/systemd/system/multi-user.target.wants
@@ -60,6 +67,16 @@ UNIT
 
 ln -sf /etc/systemd/system/fcnet.service /etc/systemd/system/multi-user.target.wants/fcnet.service
 
+cat <<'SCRIPT' > /usr/local/sbin/fc-hostname.sh
+#!/bin/bash
+set -eu
+hostname -F /etc/hostname
+name=$(cat /etc/hostname)
+sed -i '/^127\.0\.1\.1[[:space:]]/d' /etc/hosts
+echo "127.0.1.1	${name}" >> /etc/hosts
+SCRIPT
+chmod +x /usr/local/sbin/fc-hostname.sh
+
 cat <<'UNIT' > /etc/systemd/system/fc-hostname.service
 [Unit]
 Description=Set hostname from /etc/hostname
@@ -67,7 +84,7 @@ Before=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'hostname -F /etc/hostname'
+ExecStart=/usr/local/sbin/fc-hostname.sh
 RemainAfterExit=yes
 
 [Install]
