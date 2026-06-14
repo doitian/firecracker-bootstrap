@@ -19,13 +19,6 @@ echo "root:root" | chpasswd
 
 ssh-keygen -A
 
-cat <<'HOSTS' > /etc/hosts
-127.0.0.1	localhost
-::1	localhost ip6-localhost ip6-loopback
-ff02::1	ip6-allnodes
-ff02::2	ip6-allrouters
-HOSTS
-
 ln -sf /usr/lib/systemd/systemd /sbin/init
 
 mkdir -p /etc/systemd/system/getty.target.wants /etc/systemd/system/multi-user.target.wants
@@ -72,8 +65,15 @@ cat <<'SCRIPT' > /usr/local/sbin/fc-hostname.sh
 set -eu
 hostname -F /etc/hostname
 name=$(cat /etc/hostname)
-sed -i '/^127\.0\.1\.1[[:space:]]/d' /etc/hosts
-echo "127.0.1.1	${name}" >> /etc/hosts
+if [ ! -e /etc/hosts ]; then
+    cat > /etc/hosts <<HOSTS
+127.0.0.1	localhost
+127.0.1.1	${name}
+::1	localhost ip6-localhost ip6-loopback
+ff02::1	ip6-allnodes
+ff02::2	ip6-allrouters
+HOSTS
+fi
 SCRIPT
 chmod +x /usr/local/sbin/fc-hostname.sh
 
