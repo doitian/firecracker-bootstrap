@@ -32,6 +32,7 @@ chmod +x /etc/local.d/fcnet.start
 echo 'hostname -F /etc/hostname' >> /etc/local.d/hostname.start
 chmod +x /etc/local.d/hostname.start
 
+rc-update add loopback boot
 rc-update add local default
 EOR
 
