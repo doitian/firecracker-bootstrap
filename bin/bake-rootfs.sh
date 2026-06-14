@@ -6,7 +6,7 @@ IMAGE_TAG="${2:?Usage: $0 <kernelfs-dir> <image-tag>}"
 REGISTRY="ghcr.io"
 mkdir -p "rootfs/${IMAGE_TAG}"
 OUTPUT_FILE="rootfs/${IMAGE_TAG}/${IMAGE_TAG}.ext4"
-SIZE_MB=1024
+SIZE_MB="${ROOTFS_SIZE_MB:-1024}"
 
 WORK_DIR="$(mktemp -d)"
 trap 'sudo umount "${WORK_DIR}/mnt" 2>/dev/null; rm -rf "${WORK_DIR}"' EXIT
