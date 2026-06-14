@@ -41,3 +41,10 @@ usage = '''
 flag "--count <count>" help="Number of tap devices" default="1"
 '''
 run = "bin/setup-host-network.sh --count $usage_count down"
+
+[tasks."copy-ssh-keys"]
+description = "Copy SSH public key to Firecracker nodes"
+usage = '''
+flag "--count <count>" help="Number of nodes" default="1"
+'''
+run = "bin/copy-ssh-keys.sh --count $usage_count"
