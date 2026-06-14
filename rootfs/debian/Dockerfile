@@ -4,7 +4,8 @@ RUN /bin/bash <<'EOR'
 set -euo pipefail
 
 apt-get update
-apt-get install -y --no-install-recommends \
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+  usrmerge \
   openssh-server \
   iproute2 \
   systemd-sysv
