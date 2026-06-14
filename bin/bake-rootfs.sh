@@ -8,8 +8,9 @@ mkdir -p "rootfs/${IMAGE_TAG}"
 OUTPUT_FILE="rootfs/${IMAGE_TAG}/${IMAGE_TAG}.ext4"
 SIZE_MB="${ROOTFS_SIZE_MB:-1024}"
 
-WORK_DIR="$(mktemp -d)"
-trap 'sudo umount "${WORK_DIR}/mnt" 2>/dev/null; rm -rf "${WORK_DIR}"' EXIT
+OCI_DIR=$(mktemp -d)
+WORK_DIR=$(mktemp -d)
+trap 'sudo umount "${WORK_DIR}/mnt" 2>/dev/null; rm -rf "${WORK_DIR}" "${OCI_DIR}"' EXIT
 
 truncate -s ${SIZE_MB}M "${OUTPUT_FILE}"
 mkfs.ext4 -F "${OUTPUT_FILE}"
@@ -18,50 +19,35 @@ mkdir -p "${WORK_DIR}/mnt"
 sudo mount -o loop "${OUTPUT_FILE}" "${WORK_DIR}/mnt"
 
 IMAGE_REPO="doitian/firecracker-bootstrap"
-AUTH_URL="https://${REGISTRY}/token?service=${REGISTRY}&scope=repository:${IMAGE_REPO}:pull"
-BASE_URL="https://${REGISTRY}/v2/${IMAGE_REPO}"
-ACCEPT_HEADER="Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json"
 
-TOKEN=$(curl -sSL "${AUTH_URL}" | jq -r '.token')
-if [ -z "${TOKEN}" ] || [ "${TOKEN}" = "null" ]; then
-    echo "ERROR: Failed to obtain auth token" >&2
-    exit 1
-fi
-AUTH_HEADER="Authorization: Bearer ${TOKEN}"
+echo "Pulling image ${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG} ..."
+skopeo copy --multi-arch linux/amd64 "docker://${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}" "oci:${OCI_DIR}"
 
-MANIFEST=$(curl -sfSL -H "${AUTH_HEADER}" -H "${ACCEPT_HEADER}" "${BASE_URL}/manifests/${IMAGE_TAG}") || {
-    echo "ERROR: Failed to fetch manifest for ${IMAGE_REPO}:${IMAGE_TAG}" >&2
-    exit 1
-}
+TOP_DIGEST=$(jq -r '.manifests[0].digest' "${OCI_DIR}/index.json")
+TOP_MANIFEST="${OCI_DIR}/blobs/sha256/${TOP_DIGEST#sha256:}"
+TOP_TYPE=$(jq -r '.mediaType' "${TOP_MANIFEST}")
 
-MANIFEST_ERROR=$(echo "${MANIFEST}" | jq -r '.errors // empty')
-if [ -n "${MANIFEST_ERROR}" ]; then
-    echo "ERROR: ${MANIFEST_ERROR}" >&2
-    exit 1
-fi
-
-MEDIA_TYPE=$(echo "${MANIFEST}" | jq -r '.mediaType')
-
-if echo "${MEDIA_TYPE}" | grep -q "index"; then
-    DIGEST=$(echo "${MANIFEST}" | jq -r '.manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest')
+if echo "${TOP_TYPE}" | grep -q "index"; then
+    DIGEST=$(jq -r '.manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest' "${TOP_MANIFEST}")
     if [ -z "${DIGEST}" ] || [ "${DIGEST}" = "null" ]; then
         echo "ERROR: No amd64/linux manifest found in index" >&2
         exit 1
     fi
-    MANIFEST=$(curl -sfSL -H "${AUTH_HEADER}" -H "${ACCEPT_HEADER}" "${BASE_URL}/manifests/${DIGEST}") || {
-        echo "ERROR: Failed to fetch platform manifest" >&2
-        exit 1
-    }
+    IMG_MANIFEST="${OCI_DIR}/blobs/sha256/${DIGEST#sha256:}"
+else
+    IMG_MANIFEST="${TOP_MANIFEST}"
 fi
 
-DIGESTS=$(echo "${MANIFEST}" | jq -r '.layers[]?.digest')
-if [ -z "${DIGESTS}" ] || [ "${DIGESTS}" = "null" ]; then
+LAYER_DIGESTS=$(jq -r '.layers[].digest' "${IMG_MANIFEST}")
+if [ -z "${LAYER_DIGESTS}" ] || [ "${LAYER_DIGESTS}" = "null" ]; then
     echo "ERROR: No layers found in manifest" >&2
     exit 1
 fi
 
-while IFS= read -r DIGEST; do
-    curl -sSL -H "${AUTH_HEADER}" "${BASE_URL}/blobs/${DIGEST}" | gunzip | sudo tar -x \
+echo "Extracting rootfs layers ..."
+while IFS= read -r LAYER_DIGEST; do
+    BLOB_FILE="${OCI_DIR}/blobs/sha256/${LAYER_DIGEST#sha256:}"
+    sudo tar xzf "${BLOB_FILE}" \
         --xattrs --xattrs-include='*' \
         --numeric-owner \
         --same-permissions \
@@ -71,12 +57,13 @@ while IFS= read -r DIGEST; do
         --exclude='sys/*' \
         --exclude='.dockerenv' \
         -C "${WORK_DIR}/mnt"
-done <<< "${DIGESTS}"
+done <<< "${LAYER_DIGESTS}"
 
 echo "${IMAGE_TAG}" | sudo tee "${WORK_DIR}/mnt/etc/hostname" > /dev/null
 
 sudo rm -rf "${WORK_DIR}/mnt/boot" "${WORK_DIR}/mnt/lib/modules"
 
+echo "Extracting kernelfs layers ..."
 for layer in "${KERNELFS_DIR}"/layer_*.tar.gz; do
     sudo tar xzf "${layer}" \
         --xattrs --xattrs-include='*' \
@@ -98,6 +85,6 @@ fi
 
 sudo umount "${WORK_DIR}/mnt"
 trap - EXIT
-rm -rf "${WORK_DIR}"
+rm -rf "${WORK_DIR}" "${OCI_DIR}"
 
 echo "Rootfs baked: ${OUTPUT_FILE}"

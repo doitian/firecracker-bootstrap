@@ -6,49 +6,43 @@ IMAGE_TAG="6.18-fc-amd64"
 REGISTRY="ghcr.io"
 OUTDIR="./kernelfs/${IMAGE_TAG}"
 
-AUTH_URL="https://${REGISTRY}/token?service=${REGISTRY}&scope=repository:${IMAGE_REPO}:pull"
-BASE_URL="https://${REGISTRY}/v2/${IMAGE_REPO}"
+rm -rf "${OUTDIR}"
+mkdir -p "${OUTDIR}"
 
-echo "Authenticating with ${REGISTRY} ..."
-TOKEN=$(curl -sSL "${AUTH_URL}" | jq -r '.token')
-if [ -z "${TOKEN}" ] || [ "${TOKEN}" = "null" ]; then
-    echo "ERROR: Failed to obtain auth token" >&2
-    exit 1
-fi
-AUTH_HEADER="Authorization: Bearer ${TOKEN}"
-ACCEPT_HEADER="Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json"
+WORKDIR=$(mktemp -d)
+trap 'rm -rf "${WORKDIR}"' EXIT
 
-echo "Fetching manifest for ${IMAGE_REPO}:${IMAGE_TAG} ..."
-MANIFEST=$(curl -sSL -H "${AUTH_HEADER}" -H "${ACCEPT_HEADER}" "${BASE_URL}/manifests/${IMAGE_TAG}")
-MEDIA_TYPE=$(echo "${MANIFEST}" | jq -r '.mediaType')
+echo "Pulling image ${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG} ..."
+skopeo copy --multi-arch linux/amd64 "docker://${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}" "oci:${WORKDIR}"
 
-if echo "${MEDIA_TYPE}" | grep -q "index"; then
-    echo "  -> OCI image index detected, resolving amd64 manifest ..."
-    DIGEST=$(echo "${MANIFEST}" | jq -r '.manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest')
+TOP_DIGEST=$(jq -r '.manifests[0].digest' "${WORKDIR}/index.json")
+TOP_MANIFEST="${WORKDIR}/blobs/sha256/${TOP_DIGEST#sha256:}"
+TOP_TYPE=$(jq -r '.mediaType' "${TOP_MANIFEST}")
+
+if echo "${TOP_TYPE}" | grep -q "index"; then
+    DIGEST=$(jq -r '.manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest' "${TOP_MANIFEST}")
     if [ -z "${DIGEST}" ] || [ "${DIGEST}" = "null" ]; then
         echo "ERROR: No amd64/linux manifest found in index" >&2
         exit 1
     fi
-    MANIFEST=$(curl -sSL -H "${AUTH_HEADER}" -H "${ACCEPT_HEADER}" "${BASE_URL}/manifests/${DIGEST}")
+    IMG_MANIFEST="${WORKDIR}/blobs/sha256/${DIGEST#sha256:}"
+else
+    IMG_MANIFEST="${TOP_MANIFEST}"
 fi
 
-DIGESTS=$(echo "${MANIFEST}" | jq -r '.layers[].digest')
-if [ -z "${DIGESTS}" ] || [ "${DIGESTS}" = "null" ]; then
+LAYER_DIGESTS=$(jq -r '.layers[].digest' "${IMG_MANIFEST}")
+if [ -z "${LAYER_DIGESTS}" ] || [ "${LAYER_DIGESTS}" = "null" ]; then
     echo "ERROR: No layers found in manifest" >&2
     exit 1
 fi
 
-rm -rf "${OUTDIR}"
-mkdir -p "${OUTDIR}"
-
-echo "Pulling and saving layers ..."
+echo "Saving layers ..."
 LAYER_NUM=0
-TOTAL=$(echo "${DIGESTS}" | wc -l)
-while IFS= read -r DIGEST; do
+while IFS= read -r LAYER_DIGEST; do
     LAYER_NUM=$((LAYER_NUM + 1))
-    echo "  [${LAYER_NUM}/${TOTAL}] ${DIGEST}"
-    curl -sSL -H "${AUTH_HEADER}" "${BASE_URL}/blobs/${DIGEST}" -o "${OUTDIR}/layer_${LAYER_NUM}.tar.gz"
-done <<< "${DIGESTS}"
+    BLOB_FILE="${WORKDIR}/blobs/sha256/${LAYER_DIGEST#sha256:}"
+    cp "${BLOB_FILE}" "${OUTDIR}/layer_${LAYER_NUM}.tar.gz"
+done <<< "${LAYER_DIGESTS}"
 
 echo "Done. Raw tarballs saved to ${OUTDIR}"
 
