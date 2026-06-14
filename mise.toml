@@ -14,8 +14,8 @@ arg "<image-tag>" help="Docker image tag (e.g. alpine)"
 run = "bin/bake-rootfs.sh $usage_kernelfs_dir $usage_image_tag"
 
 [tasks.cleanup]
-description = "Remove baked rootfs ext4 images"
-run = "rm -rf rootfs/*/*.ext4 kernelfs/*"
+description = "Remove kernelfs, baked rootfs ext4 images and ext4 disks for running vms"
+run = "rm -rf run/*.ext4 rootfs/*/*.ext4 kernelfs/*"
 
 [tasks.host-network]
 depends = ["host-network:up"]
