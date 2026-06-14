@@ -18,9 +18,11 @@ echo "root:root" | chpasswd
 
 ssh-keygen -A
 
+ln -sf /usr/lib/systemd/systemd /sbin/init
+
 mkdir -p /etc/systemd/system/getty.target.wants /etc/systemd/system/multi-user.target.wants
-ln -sf /lib/systemd/system/serial-getty@.service /etc/systemd/system/getty.target.wants/serial-getty@ttyS0.service
-ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service
+ln -sf /usr/lib/systemd/system/serial-getty@.service /etc/systemd/system/getty.target.wants/serial-getty@ttyS0.service
+ln -sf /usr/lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service
 
 cat <<'SCRIPT' > /usr/local/sbin/fcnet-setup.sh
 #!/bin/bash
