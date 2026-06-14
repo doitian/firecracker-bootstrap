@@ -1,6 +1,6 @@
 FROM debian:bookworm-slim
 
-RUN <<EOR
+RUN /bin/bash <<'EOR'
 set -euo pipefail
 
 apt-get update
@@ -18,8 +18,9 @@ echo "root:root" | chpasswd
 
 ssh-keygen -A
 
-systemctl enable serial-getty@ttyS0.service
-systemctl enable ssh
+mkdir -p /etc/systemd/system/getty.target.wants /etc/systemd/system/multi-user.target.wants
+ln -sf /lib/systemd/system/serial-getty@.service /etc/systemd/system/getty.target.wants/serial-getty@ttyS0.service
+ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service
 
 cat <<'SCRIPT' > /usr/local/sbin/fcnet-setup.sh
 #!/bin/bash
@@ -54,7 +55,7 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 UNIT
 
-systemctl enable fcnet.service
+ln -sf /etc/systemd/system/fcnet.service /etc/systemd/system/multi-user.target.wants/fcnet.service
 
 cat <<'UNIT' > /etc/systemd/system/fc-hostname.service
 [Unit]
@@ -70,6 +71,6 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 UNIT
 
-systemctl enable fc-hostname.service
-systemctl mask networking.service 2>/dev/null || true
+ln -sf /etc/systemd/system/fc-hostname.service /etc/systemd/system/multi-user.target.wants/fc-hostname.service
+ln -sf /dev/null /etc/systemd/system/networking.service 2>/dev/null || true
 EOR
