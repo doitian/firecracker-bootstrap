@@ -16,7 +16,6 @@ set -eu
 devs=$(ip -o link show | sed -n 's/^[0-9]*: \([^:@]*\).*link\/ether 06:00:ac:.*/\1/p')
 for dev in $devs; do
     mac=$(ip -o link show dev "$dev" | sed -n 's/.*link\/ether \(..:..:..:..:..:..\).*/\1/p')
-    # MAC 06:00:XX:YY:ZZ:WW encodes IP X.Y.Z.W (last 4 bytes)
     b2=$(printf "%.2s" "${mac#*:*:}")
     b3=$(printf "%.2s" "${mac#*:*:*:}")
     b4=$(printf "%.2s" "${mac#*:*:*:*:}")
@@ -34,4 +33,19 @@ echo 'hostname -F /etc/hostname' >> /etc/local.d/hostname.start
 chmod +x /etc/local.d/hostname.start
 
 rc-update add local default
+EOR
+
+RUN <<EOR
+set -euo pipefail
+
+apk add --update-cache openssh
+rm -rf /var/cache/apk/*
+
+sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+ssh-keygen -A
+
+rc-update add sshd default
+
+rc-update add devfs sysinit
 EOR

@@ -6,7 +6,7 @@ usage() {
 Usage: start-vm.sh [OPTIONS] <rootfs-tag> <node-index>
 
 Arguments:
-  rootfs-tag     Rootfs tag (e.g., bare-bones, sshd)
+  rootfs-tag     Rootfs tag (e.g., alpine)
   node-index     Process index starting from 0 (IP = 172.16.0.<2+index>)
 
 Options:

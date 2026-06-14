@@ -9,7 +9,7 @@ run = "bin/extract-kernelfs.sh"
 description = "Bake a Firecracker rootfs ext4 image"
 usage = '''
 arg "<kernelfs-dir>" help="Path to kernelfs directory (e.g. kernelfs/6.18-fc-amd64)"
-arg "<image-tag>" help="Docker image tag (e.g. bare-bones)"
+arg "<image-tag>" help="Docker image tag (e.g. alpine)"
 '''
 run = "bin/bake-rootfs.sh $usage_kernelfs_dir $usage_image_tag"
 
