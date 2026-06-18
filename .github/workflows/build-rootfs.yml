@@ -56,6 +56,7 @@ jobs:
                 dep="${ref#$PREFIX}"
                 if [ -f "rootfs/$dep/Dockerfile" ]; then
                   echo "Building local dependency: $dep -> $ref"
+                  docker pull "$ref" 2>/dev/null || true
                   docker build -t "$ref" "rootfs/$dep"
                 fi
                 ;;
