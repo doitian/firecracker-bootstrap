@@ -20,96 +20,23 @@ jobs:
   discover:
     runs-on: ubuntu-latest
     outputs:
-      base_images: ${{ steps.set-matrix.outputs.base_images }}
-      derived_images: ${{ steps.set-matrix.outputs.derived_images }}
-      has_derived: ${{ steps.set-matrix.outputs.has_derived }}
-      image_deps: ${{ steps.set-matrix.outputs.image_deps }}
+      images: ${{ steps.set.outputs.images }}
     steps:
       - uses: actions/checkout@v6
-      - id: set-matrix
+      - id: set
         run: |
-          dirs=$(ls -d rootfs/*/Dockerfile 2>/dev/null | sed 's|/Dockerfile||')
-          bare_names=$(echo "$dirs" | sed 's|rootfs/||')
+          dirs=$(ls -d rootfs/*/ 2>/dev/null | sed 's|rootfs/||;s|/||')
+          echo "images=$(echo "$dirs" | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
 
-          base_images="[]"
-          derived_images="[]"
-          dep_json="{}"
-
-          for d in $dirs; do
-            name=$(basename "$d")
-            froms=$(grep -oP "FROM\s+ghcr\.io/${{ github.repository }}:\K[^\s]+" "$d/Dockerfile" 2>/dev/null || true)
-
-            deps="[]"
-            for ref in $froms; do
-              if echo "$bare_names" | grep -qxF "$ref"; then
-                deps=$(echo "$deps" | jq -c --arg r "$ref" '. + [$r]')
-              fi
-            done
-
-            dep_json=$(echo "$dep_json" | jq -c --arg n "$name" --argjson d "$deps" '. + {($n): $d}')
-
-            if echo "$deps" | jq -e 'length == 0' > /dev/null 2>&1; then
-              base_images=$(echo "$base_images" | jq -c --arg n "$name" '. + [$n]')
-            else
-              derived_images=$(echo "$derived_images" | jq -c --arg n "$name" '. + [$n]')
-            fi
-          done
-
-          has_derived="false"
-          if echo "$derived_images" | jq -e 'length > 0' > /dev/null 2>&1; then
-            has_derived="true"
-          fi
-
-          echo "base_images=$base_images" >> "$GITHUB_OUTPUT"
-          echo "derived_images=$derived_images" >> "$GITHUB_OUTPUT"
-          echo "has_derived=$has_derived" >> "$GITHUB_OUTPUT"
-          echo "image_deps=$dep_json" >> "$GITHUB_OUTPUT"
-
-  build-base:
+  build:
     needs: discover
     runs-on: ubuntu-latest
-    if: ${{ needs.discover.outputs.base_images != '[]' }}
     strategy:
       matrix:
-        tag: ${{ fromJSON(needs.discover.outputs.base_images) }}
+        tag: ${{ fromJSON(needs.discover.outputs.images) }}
     permissions:
       contents: read
       packages: write
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@v6
-        id: meta
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ matrix.tag }}
-
-      - uses: docker/build-push-action@v7
-        with:
-          context: rootfs/${{ matrix.tag }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  build-derived:
-    needs: discover
-    runs-on: ubuntu-latest
-    if: ${{ needs.discover.outputs.has_derived == 'true' }}
-    strategy:
-      matrix:
-        tag: ${{ fromJSON(needs.discover.outputs.derived_images) }}
-    permissions:
-      contents: read
-      packages: write
-
     steps:
       - uses: actions/checkout@v6
 
@@ -121,10 +48,18 @@ jobs:
 
       - name: Build local dependencies
         run: |
-          deps='${{ needs.discover.outputs.image_deps }}'
-          for dep in $(echo "$deps" | jq -r '.["${{ matrix.tag }}"] // [] | .[]'); do
-            echo "Building local dependency: $dep"
-            docker build -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$dep" "rootfs/$dep"
+          FROM_REFS=$(grep -oP '^FROM\s+\K\S+' "rootfs/${{ matrix.tag }}/Dockerfile" 2>/dev/null || true)
+          PREFIX="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:"
+          for ref in $FROM_REFS; do
+            case "$ref" in
+              "$PREFIX"*)
+                dep="${ref#$PREFIX}"
+                if [ -f "rootfs/$dep/Dockerfile" ]; then
+                  echo "Building local dependency: $dep -> $ref"
+                  docker build -t "$ref" "rootfs/$dep"
+                fi
+                ;;
+            esac
           done
 
       - uses: docker/metadata-action@v6
