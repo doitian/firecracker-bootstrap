@@ -4,7 +4,7 @@
 
 - [Firecracker](https://github.com/firecracker-microvm/firecracker) on your `PATH` (override with `FIRECRACKER_BIN`)
 - [mise](https://mise.jdx.dev/) to run the tasks below (it also installs `process-compose`)
-- `skopeo`, `jq`, `mkfs.ext4`, and `sudo` for baking rootfs images
+- `buildah`, `jq`, `mkfs.ext4`, and `sudo` for building and baking rootfs images (`skopeo` is used as a fallback for pulling pre-built images)
 - `ip`, `nft`, and `ufw` for host networking
 - KVM access (`/dev/kvm`)
 
@@ -20,9 +20,18 @@ Pulls the kernel OCI image and writes `kernelfs/6.18-fc-amd64/vmlinux.bin`:
 mise run extract-kernelfs
 ```
 
-### 2. Bake a rootfs image
+### 2. Build rootfs images (optional — local build)
 
-Builds a bootable ext4 rootfs from a published Docker image tag (`alpine`, `debian`, or `debian-jepsen`) plus the extracted kernel modules. The result lands at `rootfs/<tag>/<tag>.ext4`.
+Build rootfs Docker images locally with `buildah`. This is the preferred approach; if you skip it, `bake-rootfs` falls back to pulling pre-built images from the registry.
+
+```sh
+mise run build-rootfs alpine          # build a single image
+mise run build-rootfs                 # build all images
+```
+
+### 3. Bake a rootfs image
+
+Creates a bootable ext4 rootfs from a Docker image tag (`alpine`, `debian`, or `debian-jepsen`) plus the extracted kernel modules. Prefers locally-built `buildah` images; falls back to pulling from `ghcr.io` via `skopeo`. The result lands at `rootfs/<tag>/<tag>.ext4`.
 
 ```sh
 mise run bake-rootfs kernelfs/6.18-fc-amd64 alpine
@@ -34,7 +43,7 @@ Override the disk size (default 1024 MB) with `ROOTFS_SIZE_MB`:
 ROOTFS_SIZE_MB=2048 mise run bake-rootfs kernelfs/6.18-fc-amd64 debian
 ```
 
-### 3. Set up host networking
+### 4. Set up host networking
 
 Creates the `fc-br0` bridge, tap devices, NAT, and firewall rules. Guests get IPs `172.16.0.2`, `172.16.0.3`, … (one per tap). Use `--count` to provision more than one tap:
 
@@ -48,7 +57,7 @@ Tear it down when finished:
 mise run host-network:down --count 5
 ```
 
-### 4. Start a microVM
+### 5. Start a microVM
 
 Launch a VM from a baked rootfs tag. The second argument is a node index starting at `0`, which maps to IP `172.16.0.<2+index>` and tap `tap<2+index>`. Each node boots from its own writable copy of the base image under `run/`.
 

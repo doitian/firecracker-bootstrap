@@ -11,7 +11,7 @@ Toolchain for provisioning and booting lightweight microVMs using [Firecracker](
 - **Shell:** `bin/*.sh` — all orchestration logic
 - **Task runner:** `mise` (defined in `mise.toml`)
 - **Cluster orchestration:** `process-compose` (auto-installed by mise)
-- **Images:** Dockerfiles (`rootfs/*/Dockerfile`) built/pushed via GitHub Actions; Firecracker VM configs (`rootfs/*/config.json`)
+- **Images:** Dockerfiles (`rootfs/*/Dockerfile`) built locally with `buildah` or pulled from `ghcr.io` via `skopeo`; Firecracker VM configs (`rootfs/*/config.json`)
 
 There is no compiled code, no package manager, no linter, and no test framework.
 
@@ -28,7 +28,9 @@ mise run extract-kernelfs              # Pull kernel OCI image → kernelfs/<ver
 ### Rootfs Images
 
 ```bash
-mise run bake-rootfs kernelfs/6.18-fc-amd64 alpine          # Alpine ext4 rootfs
+mise run build-rootfs alpine                   # Build a single image locally with buildah (preferred)
+mise run build-rootfs                          # Build all images locally
+mise run bake-rootfs kernelfs/6.18-fc-amd64 alpine          # Bake ext4 rootfs (uses local buildah image if available)
 mise run bake-rootfs kernelfs/6.18-fc-amd64 debian          # Debian ext4 rootfs
 mise run bake-rootfs kernelfs/6.18-fc-amd64 debian-jepsen   # Debian + Jepsen deps
 ROOTFS_SIZE_MB=2048 mise run bake-rootfs ...                # Optional: override disk size (default 1024 MB)
@@ -70,7 +72,7 @@ mise run cleanup:rootfs                 # Remove baked rootfs ext4 images (rootf
 ## Directory Structure
 
 ```
-bin/              → Executable shell scripts (start-vm, bake-rootfs, extract-kernelfs, setup-host-network, copy-ssh-keys)
+bin/              → Executable shell scripts (start-vm, build-rootfs, bake-rootfs, extract-kernelfs, setup-host-network, copy-ssh-keys)
 kernelfs/         → Extracted guest kernel + modules (generated, gitignored)
 rootfs/           → Per-distro Dockerfile + config.json + *.ext4 (ext4 is generated, gitignored)
 clusters/         → process-compose.yaml definitions for multi-node clusters
@@ -83,7 +85,8 @@ run/              → Per-node writable rootfs copies + logs + generated configs
 | Script | Lines | Purpose |
 |--------|-------|---------|
 | `bin/start-vm.sh` | ~168 | Parse args, generate per-node config from template, create writable CoW rootfs copy, launch firecracker |
-| `bin/bake-rootfs.sh` | ~90 | Pull OCI image via skopeo, create/mount ext4, extract rootfs layers + kernel modules |
+| `bin/build-rootfs.sh` | ~54 | Resolve Dockerfile deps, build images locally with `buildah bud` |
+| `bin/bake-rootfs.sh` | ~96 | Prefer local buildah images, fall back to skopeo; create/mount ext4, extract rootfs layers + kernel modules |
 | `bin/setup-host-network.sh` | ~195 | Create/destroy fc-br0 bridge, tap devices, nftables rules, UFW rules |
 | `bin/extract-kernelfs.sh` | ~54 | Pull kernel OCI image, save layer tarballs, extract vmlinux.bin |
 | `bin/copy-ssh-keys.sh` | ~77 | Copy SSH public key from ssh-agent to all nodes via sshpass |
@@ -98,4 +101,4 @@ Node index `N` → tap device `tap$((N+2))`, IP `172.16.0.$((N+2))`. Nodes 0..4 
 
 ## Prerequisites
 
-`firecracker`, `mise`, `skopeo`, `jq`, `mkfs.ext4`, `sudo`, `ip`, `nft`, `ufw`, `/dev/kvm` access.
+`firecracker`, `mise`, `buildah`, `skopeo`, `jq`, `mkfs.ext4`, `sudo`, `ip`, `nft`, `ufw`, `/dev/kvm` access.
