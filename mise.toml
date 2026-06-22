@@ -5,6 +5,13 @@
 description = "Extract kernel filesystem layers from OCI image"
 run = "bin/extract-kernelfs.sh"
 
+[tasks.build-rootfs]
+description = "Build rootfs Docker images using buildah"
+usage = '''
+arg "[image-tag]" help="Image tag to build (e.g. alpine). If omitted, builds all."
+'''
+run = "bin/build-rootfs.sh $usage_image_tag"
+
 [tasks.bake-rootfs]
 description = "Bake a Firecracker rootfs ext4 image"
 usage = '''

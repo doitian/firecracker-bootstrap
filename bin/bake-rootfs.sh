@@ -19,9 +19,15 @@ mkdir -p "${WORK_DIR}/mnt"
 sudo mount -o loop "${OUTPUT_FILE}" "${WORK_DIR}/mnt"
 
 IMAGE_REPO="doitian/firecracker-bootstrap"
+FULL_IMAGE="${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}"
 
-echo "Pulling image ${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG} ..."
-skopeo copy --multi-arch linux/amd64 "docker://${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}" "oci:${OCI_DIR}"
+if buildah inspect "${FULL_IMAGE}" &>/dev/null; then
+    echo "Using local buildah image: ${FULL_IMAGE} ..."
+    buildah push "${FULL_IMAGE}" "oci:${OCI_DIR}"
+else
+    echo "Pulling image ${FULL_IMAGE} ..."
+    skopeo copy --multi-arch linux/amd64 "docker://${FULL_IMAGE}" "oci:${OCI_DIR}"
+fi
 
 TOP_DIGEST=$(jq -r '.manifests[0].digest' "${OCI_DIR}/index.json")
 TOP_MANIFEST="${OCI_DIR}/blobs/sha256/${TOP_DIGEST#sha256:}"
