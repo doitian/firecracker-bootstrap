@@ -76,6 +76,16 @@ Useful options:
 bin/start-vm.sh alpine 0 --set machine-config.vcpu_count=4
 ```
 
+### Stop a microVM or disconnect
+
+To shut down the VM and return from the serial console to your host terminal, run as root inside the guest:
+
+```sh
+reboot
+```
+
+In this setup, rebooting shuts down the guest and exits Firecracker. To disconnect an SSH session while leaving the VM running, use `exit`. On the serial console, `exit` only logs you out and returns to the guest login prompt.
+
 ### Run a cluster
 
 `clusters/<name>/process-compose.yaml` defines multi-node clusters launched with `process-compose`. For example, the 5-node Jepsen etcd cluster (set up the network with `--count 5` first):
